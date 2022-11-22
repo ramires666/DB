@@ -167,6 +167,8 @@ async def get_LOG_page(_TimeFrom, _TimeTo, _vehicleID, session, page=1, rows=500
                 current_page =  DATA['results']['page']
                 pagelog =  DATA['results']['rows']
         except:
+            waitTime=0.33
+            await asyncio.sleep(waitTime)
             print(f'retrying to load agian PAGE#_{page}  {_vehicleID} {vehicleName} ')
             pass
 

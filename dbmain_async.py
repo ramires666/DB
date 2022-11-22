@@ -687,7 +687,7 @@ async def main():
     # cursor.execute(f"SELECT omniIDxl from cars where omniIDxl='1219000602'")
 
     # cars = cursor.fetchall()[44:45]
-    cars = cursor.fetchall()[78:]
+    cars = cursor.fetchall()[79:]
     totalCars = len(cars)
     print(f'Total car {totalCars}')
 

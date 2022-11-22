@@ -205,12 +205,13 @@ async def logPageDownloader(_TimeFrom, _TimeTo, _vehicleID, session, pageN, rows
 
 
 
-async def get_LOG(_TimeFrom, _TimeTo, _vehicleID, session, rows=500, action="getReportData", useSaved=True ,_vehicleName=''):
+async def get_LOG(_TimeFrom, _TimeTo, _vehicleID, session, rows=500, action="getReportData", useSaved=True, save2file=False ,_vehicleName=''):
     # print('__>> get_LOG')
     dateDate = Onix2Date(_TimeFrom).date()
     projectDir=r'/home/user/PYTHON/Projects/DSM/venv'
     dirName = f"{projectDir}/Cashed_requests/_LOGS/{dateDate}"
-    if not os.path.exists(dirName): os.mkdir(dirName)
+    if save2file and not os.path.exists(dirName):
+        os.mkdir(dirName)
     cashed_file = f"{projectDir}/Cashed_requests/_LOGS/{dateDate}/log-{_TimeFrom}_{_TimeTo}_{_vehicleID}.pydata"
     if useSaved and os.path.exists(cashed_file):
         with open( cashed_file, 'rb' ) as pickleRick:
@@ -250,8 +251,9 @@ async def get_LOG(_TimeFrom, _TimeTo, _vehicleID, session, rows=500, action="get
             await asyncio.gather(*tasks)
 
         # saving scraped request:
-        with open( cashed_file, 'wb' ) as f:
-            pickle.dump( list2return, f )
+        if save2file:
+            with open( cashed_file, 'wb' ) as f:
+                pickle.dump( list2return, f )
 
         return list2return
 

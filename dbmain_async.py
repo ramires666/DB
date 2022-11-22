@@ -93,7 +93,7 @@ class Limiter:
 
 
 
-@Limiter(calls_limit=7, period=1)
+@Limiter(calls_limit=3, period=1)
 async def get_LOG_page(_TimeFrom, _TimeTo, _vehicleID, session, page=1, rows=500, vehicleName='', action="getReportData", useSaved=True ):   # Onix time !
     # print('async def get_LOG_page')
     JWT =  auth()['jwt']

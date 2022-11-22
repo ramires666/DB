@@ -17,11 +17,21 @@ warnings.simplefilter("ignore")
 import asyncio
 import aiohttp
 import time
+import subprocess
+
+
+
+def GetPath2DBfile():
+    myip=subprocess.run("wget -O - -q icanhazip.com".split(' '), stdout=subprocess.PIPE, text=True).stdout[:-1]
+    if myip == '195.239.228.234':
+        return '/mnt/DB/journal.sqlite'
+    else:
+        return '/home/user/PYTHON/Projects/DB/journal.sqlite'
 
 
 async def autorizing():
-    jwt = auth()['jwt']
-    await asyncio.sleep(62)
+    jwt = await auth()['jwt']
+    # await asyncio.sleep(62)
 
 
 def Date2Onix(year, month, day, hour=12, minute=0, second = 0):  # date to milliseconds
@@ -83,7 +93,7 @@ class Limiter:
 
 
 
-@Limiter(calls_limit=5, period=1)
+# @Limiter(calls_limit=25, period=10)
 async def get_LOG_page(_TimeFrom, _TimeTo, _vehicleID, session, page=1, rows=500, vehicleName='', action="getReportData", useSaved=True ):   # Onix time !
     # print('async def get_LOG_page')
     JWT =  auth()['jwt']
@@ -138,12 +148,18 @@ async def get_LOG_page(_TimeFrom, _TimeTo, _vehicleID, session, page=1, rows=500
     st=0
     while st !=200:
         try:
+
+            waitTime=0.33
+            await asyncio.sleep(waitTime)
+
             print(f'trying to session.post page№ {page} rows={rows} {vehicleName}')
             async with session.post( 'https://online.omnicomm.ru/service/reports/', data=Params, headers=Headers ) as server_answer:
-                waitTime=0.33
-                await asyncio.sleep(waitTime)
+
+                # waitTime = 0.33
+                # await asyncio.sleep(waitTime)
+
                 time_taken_for_request = dt.strptime(server_answer.raw_headers[1][1].decode(),'%a, %d %b %Y %H:%M:%S %Z')-dt.utcnow()
-                print('GOT log page №',page,'(rows =',rows,") ",vehicleName,server_answer.status,"->",time_taken_for_request)
+                # print('GOT log page №',page,'(rows =',rows,") ",vehicleName,server_answer.status,"->",time_taken_for_request)
                 st = server_answer.status
                 DATA = await server_answer.json( loads=json.loads)
                 total_pages =  DATA['results']['total']
@@ -632,11 +648,12 @@ async def main():
     # REAL
     # TEXT
     # BLOB
-    cars_xl_list_path = '/home/user/PYTHON/Projects/DSM/venv/_lists/listAUTO_fullList.xlsx'
-    path2DB = r'/home/user/PYTHON/Projects/DB/'
-    DBname = 'journal.sqlite'
+    # cars_xl_list_path = '/home/user/PYTHON/Projects/DSM/venv/_lists/listAUTO_fullList.xlsx'
+    # path2DB = r'/home/user/PYTHON/Projects/DB/'
+    # DBname = 'journal.sqlite'
+    path2DBfile = GetPath2DBfile()
     # connect to database
-    connection = sqlite3.connect(path2DB+DBname)
+    connection = sqlite3.connect(path2DBfile)
     # create a cursor
     cursor = connection.cursor()
     cursor.execute(f"SELECT Count(*) FROM journal")

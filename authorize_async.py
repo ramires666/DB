@@ -80,7 +80,8 @@ def refresh(jwt):
     response = False
     timeMult = 1.3333
     time2wait = 0.1
-    if not jwt['refresh']: return auth()
+    if not jwt['refresh']:
+        return auth()
     while response == False:
         try:
             Headers = {'accept': 'application/json',

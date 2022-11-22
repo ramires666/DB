@@ -684,11 +684,11 @@ async def main():
     # # getting info for insertion:
     # _vehicleID = 1219001271
 
-    dateFrom  = dt(2022,10,11,0,0,0)
-    dateTo =    dt(2022,10,12,0,0,0)
+    dateFrom  = dt(2022,10,2,0,0,0)
+    dateTo =    dt(2022,10,31,0,0,0)
 
-    # cursor.execute(f"SELECT omniIDxl from cars")
-    cursor.execute(f"SELECT omniIDxl from cars where omniIDxl='1219000601'")
+    cursor.execute(f"SELECT omniIDxl from cars")
+    # cursor.execute(f"SELECT omniIDxl from cars where omniIDxl='1219000601'")
 
     # cars = cursor.fetchall()[44:45]
     cars = cursor.fetchall()

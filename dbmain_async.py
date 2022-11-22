@@ -93,8 +93,8 @@ class Limiter:
 
 
 
-@Limiter(calls_limit=15, period=1)
-async def get_LOG_page(_TimeFrom, _TimeTo, _vehicleID, session, page=1, rows=500, vehicleName='', action="getReportData", useSaved=True ):   # Onix time !
+@Limiter(calls_limit=25, period=5)
+async def get_LOG_page(_TimeFrom, _TimeTo, _vehicleID, session, page=1, rows=250, vehicleName='', action="getReportData", useSaved=True ):   # Onix time !
     # print('async def get_LOG_page')
     JWT =  auth()['jwt']
     Headers = {'accept': 'application/json',
@@ -152,7 +152,8 @@ async def get_LOG_page(_TimeFrom, _TimeTo, _vehicleID, session, page=1, rows=500
             waitTime=0.33
             await asyncio.sleep(waitTime)
 
-            print(f'trying to session.post page№ {page} rows={rows} {vehicleName}')
+            print(f'-------->>  start session.post page№ {page} rows={rows} {vehicleName}')
+            # print('_______________________________________________________________________')
             async with session.post( 'https://online.omnicomm.ru/service/reports/', data=Params, headers=Headers ) as server_answer:
 
                 waitTime = 0.33
@@ -190,7 +191,7 @@ async def logPageDownloader(_TimeFrom, _TimeTo, _vehicleID, session, pageN, rows
                                                                                   session, pageN,
                                                                                   rows, useSaved=useSaved,
                                                                                   vehicleName=vehicleName)
-    print(f'<<__ loaded page# {pageN} {rows} out of {total_records} on car={vehicleName}  >>>> {Onix2Date(_TimeFrom)} >>>>> {Onix2Date(_TimeTo)}')
+    print(f'<<---- loaded page# <{pageN}> per {rows} out of <<{int(total_records/rows)} | {total_records}>> on car={vehicleName}  >>>> {Onix2Date(_TimeFrom)} >>>>> {Onix2Date(_TimeTo)}')
 
 
     #
@@ -210,7 +211,7 @@ async def logPageDownloader(_TimeFrom, _TimeTo, _vehicleID, session, pageN, rows
 
 
 
-async def get_LOG(_TimeFrom, _TimeTo, _vehicleID, session, rows=500, action="getReportData", useSaved=True, save2file=False ,_vehicleName=''):
+async def get_LOG(_TimeFrom, _TimeTo, _vehicleID, session, rows=250, action="getReportData", useSaved=True, save2file=False ,_vehicleName=''):
     # print('__>> get_LOG')
     dateDate = Onix2Date(_TimeFrom).date()
     projectDir=r'/home/user/PYTHON/Projects/DSM/venv'
@@ -683,14 +684,14 @@ async def main():
     # # getting info for insertion:
     # _vehicleID = 1219001271
 
-    dateFrom  = dt(2022,10,6,0,0,0)
-    dateTo =    dt(2022,10,10,0,0,0)
+    dateFrom  = dt(2022,10,11,0,0,0)
+    dateTo =    dt(2022,10,12,0,0,0)
 
-    cursor.execute(f"SELECT omniIDxl from cars")
-    # cursor.execute(f"SELECT omniIDxl from cars where omniIDxl='1219000602'")
+    # cursor.execute(f"SELECT omniIDxl from cars")
+    cursor.execute(f"SELECT omniIDxl from cars where omniIDxl='1219000601'")
 
     # cars = cursor.fetchall()[44:45]
-    cars = cursor.fetchall()[79:]
+    cars = cursor.fetchall()
     totalCars = len(cars)
     print(f'Total car {totalCars}')
 

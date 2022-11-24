@@ -664,7 +664,7 @@ async def main():
     # DBname = 'journal.sqlite'
     path2DBfile = GetPath2DBfile()
     # connect to database
-    connection = sqlite3.connect(path2DBfile)
+    connection = sqlite3.connect(path2DBfile, timeout=10, isolation_level=None)
     # create a cursor
     cursor = connection.cursor()
     cursor.execute(f"SELECT Count(*) FROM journal")

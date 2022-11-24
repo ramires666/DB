@@ -647,6 +647,14 @@ async def logRetrive(car,dateFrom,dateTo,connection,session):
     logInserter(log, connection, _vehicleID)
     print(f'SAVED logs for {carName}')
 
+
+def loger(message):
+    print(message)
+    with open('loglines.txt', 'a') as log_file:
+        log_file.write(message+'\n')
+
+
+
 #%%
 # ioloop = asyncio.get_event_loop()
 async def main():
@@ -689,24 +697,30 @@ async def main():
 
     cursor.execute(f"SELECT Count(*) FROM journal")
     totalRecordsWAS = cursor.fetchall()[0][0]
-    print(f'Total records = {totalRecordsWAS}')
+    loger(f'----------Total records = {totalRecordsWAS}')
+
 
     dateFrom  = dt(2022,10,1,0,0,0)
     dateTo =    dt(2022,10,31,0,0,0)
     oneday = td(1)
     days = dateTo - dateFrom
+
+
     for day in range(0,days.days+1):
+        started2 = dt.utcnow()
+        loger(f'started {started2}')
         From = dateFrom+td(day)
         To = From + oneday
 
         cursor.execute(f"SELECT Count(*) FROM journal")
         currentTotalRecordsWAS = cursor.fetchall()[0][0]
-        print(f'for day {From.date()} Total records = {currentTotalRecordsWAS}')
+        loger(f'for day {From.date()} Total records = {currentTotalRecordsWAS}')
 
+        # total cars before
         cursor.execute(f"SELECT omniIDxl from cars")
         cars = cursor.fetchall()
         totalCars = len(cars)
-        print(f'Total car {totalCars}')
+        loger(f'Total car {totalCars}')
 
         tasks = []
         async with aiohttp.ClientSession() as session:
@@ -715,15 +729,17 @@ async def main():
                 tasks.append(task)
             await asyncio.gather(*tasks)
 
-        print('done!')
+        print('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Done! >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
         cursor.execute(f"SELECT Count(*) FROM journal")
         totalRecordsBECAME = cursor.fetchall()[0][0]
-        print(f'for day {From.date()} taken {dt.utcnow()-started} written total: {totalRecordsBECAME - currentTotalRecordsWAS} records')
+        loger(f'for day {From.date()} taken {dt.utcnow()-started2} written total: {totalRecordsBECAME - currentTotalRecordsWAS} records')
 
-    print('completed!')
+
+    loger('-------------completed!')
     cursor.execute(f"SELECT Count(*) FROM journal")
     totalRecordsBECAME = cursor.fetchall()[0][0]
-    print(f'TOTAL taken {dt.utcnow()-started} written total: {totalRecordsBECAME - totalRecordsWAS} records')
+    loger(f'------------TOTAL taken {dt.utcnow()-started} written total: {totalRecordsBECAME - totalRecordsWAS} records')
+
     # commit
     connection.commit()
     # Close connection

@@ -1,2 +1,5 @@
 /journal.sqlite
 /journal.sqlite.tar.gz
+/data.txt
+/authJWT.txt
+/loglines.txt

@@ -170,7 +170,6 @@ async def get_LOG_page(_TimeFrom, _TimeTo, _vehicleID, session, page=1, rows=250
             pass
         else:
             try:
-
                 total_pages =  DATA['results']['total']
                 total_records =  DATA['results']['records']
                 current_page =  DATA['results']['page']

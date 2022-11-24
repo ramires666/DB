@@ -93,7 +93,7 @@ class Limiter:
 
 
 
-@Limiter(calls_limit=10, period=1)
+@Limiter(calls_limit=5, period=1)
 async def get_LOG_page(_TimeFrom, _TimeTo, _vehicleID, session, page=1, rows=500, vehicleName='', action="getReportData", useSaved=True ):   # Onix time !
     # print('async def get_LOG_page')
     JWT =  auth()['jwt']
@@ -176,8 +176,8 @@ async def get_LOG_page(_TimeFrom, _TimeTo, _vehicleID, session, page=1, rows=500
                 pagelog =  DATA['results']['rows']
             except Exception as e:
                 print(e)
-            waitTime=0.33
-            await asyncio.sleep(waitTime)
+            # waitTime=0.33
+            # await asyncio.sleep(waitTime)
 
     return pagelog,total_pages,total_records,current_page
 

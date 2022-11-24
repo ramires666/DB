@@ -93,7 +93,7 @@ class Limiter:
 
 
 
-@Limiter(calls_limit=6, period=2)
+@Limiter(calls_limit=7, period=1)
 async def get_LOG_page(_TimeFrom, _TimeTo, _vehicleID, session, page=1, rows=250, vehicleName='', action="getReportData", useSaved=True ):   # Onix time !
     # print('async def get_LOG_page')
     JWT =  auth()['jwt']
@@ -153,26 +153,30 @@ async def get_LOG_page(_TimeFrom, _TimeTo, _vehicleID, session, page=1, rows=250
             await asyncio.sleep(waitTime)
 
             print(f'-------->>  start session.post page№ {page} rows={rows} {vehicleName}')
-            # print('_______________________________________________________________________')
+            print('_______________________________________________________________________')
             async with session.post( 'https://online.omnicomm.ru/service/reports/', data=Params, headers=Headers ) as server_answer:
 
-                waitTime = 0.33
-                await asyncio.sleep(waitTime)
-
+                # waitTime = 0.33
+                # await asyncio.sleep(waitTime)
+                DATA = await server_answer.json(loads=json.loads)
                 time_taken_for_request = dt.strptime(server_answer.raw_headers[1][1].decode(),'%a, %d %b %Y %H:%M:%S %Z')-dt.utcnow()
                 # print('GOT log page №',page,'(rows =',rows,") ",vehicleName,server_answer.status,"->",time_taken_for_request)
                 st = server_answer.status
-                DATA = await server_answer.json( loads=json.loads)
-                total_pages =  DATA['results']['total']
-                total_records =  DATA['results']['records']
-                current_page =  DATA['results']['page']
-                pagelog =  DATA['results']['rows']
-        except:
-            waitTime=10.33
+        except Exception as e:
+            print(e)
+            waitTime=0.33
             await asyncio.sleep(waitTime)
             print(f'retrying to load agian PAGE#_{page}  {_vehicleID} {vehicleName} ')
             pass
         else:
+            try:
+
+                total_pages =  DATA['results']['total']
+                total_records =  DATA['results']['records']
+                current_page =  DATA['results']['page']
+                pagelog =  DATA['results']['rows']
+            except Exception as e:
+                print(e)
             waitTime=0.33
             await asyncio.sleep(waitTime)
 

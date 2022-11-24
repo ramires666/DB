@@ -93,8 +93,8 @@ class Limiter:
 
 
 
-@Limiter(calls_limit=7, period=1)
-async def get_LOG_page(_TimeFrom, _TimeTo, _vehicleID, session, page=1, rows=250, vehicleName='', action="getReportData", useSaved=True ):   # Onix time !
+@Limiter(calls_limit=15, period=1)
+async def get_LOG_page(_TimeFrom, _TimeTo, _vehicleID, session, page=1, rows=500, vehicleName='', action="getReportData", useSaved=True ):   # Onix time !
     # print('async def get_LOG_page')
     JWT =  auth()['jwt']
     Headers = {'accept': 'application/json',
@@ -214,7 +214,7 @@ async def logPageDownloader(_TimeFrom, _TimeTo, _vehicleID, session, pageN, rows
 
 
 
-async def get_LOG(_TimeFrom, _TimeTo, _vehicleID, session, rows=250, action="getReportData", useSaved=True, save2file=False ,_vehicleName=''):
+async def get_LOG(_TimeFrom, _TimeTo, _vehicleID, session, rows=500, action="getReportData", useSaved=True, save2file=False ,_vehicleName=''):
     # print('__>> get_LOG')
     dateDate = Onix2Date(_TimeFrom).date()
     projectDir=r'/home/user/PYTHON/Projects/DSM/venv'
@@ -667,9 +667,8 @@ async def main():
     connection = sqlite3.connect(path2DBfile, timeout=10, isolation_level=None)
     # create a cursor
     cursor = connection.cursor()
-    cursor.execute(f"SELECT Count(*) FROM journal")
-    totalRecordsWAS = cursor.fetchall()[0][0]
-    print(f'Total records = {totalRecordsWAS}')
+
+
     # # check if cars table exist
     # if check_if_cars_table_exist(cursor) == False:
     #     create_cars_table(connection, cars_xl_list_path)
@@ -680,44 +679,51 @@ async def main():
     #     create_journal_table(cursor)
     #     connection.commit()
 
-    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS ndx_car_time ON journal(carID, eventDate);")
-    cursor.execute("CREATE INDEX IF NOT EXISTS ndx_car ON journal(carID);")
-    cursor.execute("CREATE INDEX IF NOT EXISTS ndx_time ON journal(eventDate);")
-    connection.commit()
+    # cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS ndx_car_time ON journal(carID, eventDate);")
+    # cursor.execute("CREATE INDEX IF NOT EXISTS ndx_car ON journal(carID);")
+    # cursor.execute("CREATE INDEX IF NOT EXISTS ndx_time ON journal(eventDate);")
+    # connection.commit()
+
     # # getting info for insertion:
     # _vehicleID = 1219001271
 
-    dateFrom  = dt(2022,10,2,0,0,0)
+    cursor.execute(f"SELECT Count(*) FROM journal")
+    totalRecordsWAS = cursor.fetchall()[0][0]
+    print(f'Total records = {totalRecordsWAS}')
+
+    dateFrom  = dt(2022,10,1,0,0,0)
     dateTo =    dt(2022,10,31,0,0,0)
+    oneday = td(1)
+    days = dateTo - dateFrom
+    for day in range(0,days.days+1):
+        From = dateFrom+td(day)
+        To = From + oneday
 
-    cursor.execute(f"SELECT omniIDxl from cars")
-    # cursor.execute(f"SELECT omniIDxl from cars where omniIDxl='1219000601'")
+        cursor.execute(f"SELECT Count(*) FROM journal")
+        currentTotalRecordsWAS = cursor.fetchall()[0][0]
+        print(f'for day {From.date()} Total records = {currentTotalRecordsWAS}')
 
-    # cars = cursor.fetchall()[44:45]
-    cars = cursor.fetchall()
-    totalCars = len(cars)
-    print(f'Total car {totalCars}')
+        cursor.execute(f"SELECT omniIDxl from cars")
+        cars = cursor.fetchall()
+        totalCars = len(cars)
+        print(f'Total car {totalCars}')
 
-    tasks = []
-    # tasks.append(asyncio.create_task(autorizing()))
-    async with aiohttp.ClientSession() as session:
-        for num in range(0,totalCars):
-            # time.sleep(0.33)
-            task = asyncio.create_task(logRetrive(cars.pop(0), dateFrom, dateTo, connection,session))
-            tasks.append(task)
+        tasks = []
+        async with aiohttp.ClientSession() as session:
+            for num in range(0,totalCars):
+                task = asyncio.create_task(logRetrive(cars.pop(0), From, To, connection,session))
+                tasks.append(task)
+            await asyncio.gather(*tasks)
 
-        await asyncio.gather(*tasks)
+        print('done!')
+        cursor.execute(f"SELECT Count(*) FROM journal")
+        totalRecordsBECAME = cursor.fetchall()[0][0]
+        print(f'for day {From.date()} taken {dt.utcnow()-started} written total: {totalRecordsBECAME - currentTotalRecordsWAS} records')
 
-
-    # # query the DB:
-    # cursor.execute("SELECT rowid, * FROM journal ORDER BY rowid DESC  LIMIT 10")
-    # items = cursor.fetchall()
-
-
-    print('done!')
+    print('completed!')
     cursor.execute(f"SELECT Count(*) FROM journal")
     totalRecordsBECAME = cursor.fetchall()[0][0]
-    print(f'taken {dt.utcnow()-started} written total: {totalRecordsBECAME - totalRecordsWAS} records')
+    print(f'TOTAL taken {dt.utcnow()-started} written total: {totalRecordsBECAME - totalRecordsWAS} records')
     # commit
     connection.commit()
     # Close connection

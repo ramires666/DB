@@ -700,7 +700,7 @@ async def main():
     loger(f'----------Total records = {totalRecordsWAS}')
 
 
-    dateFrom  = dt(2022,10,2,0,0,0)
+    dateFrom  = dt(2022,10,8,0,0,0)
     dateTo =    dt(2022,10,31,0,0,0)
     oneday = td(1)
     days = dateTo - dateFrom

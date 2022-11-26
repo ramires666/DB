@@ -93,7 +93,7 @@ class Limiter:
 
 
 
-@Limiter(calls_limit=5, period=1)
+@Limiter(calls_limit=15, period=1)
 async def get_LOG_page(_TimeFrom, _TimeTo, _vehicleID, session, page=1, rows=500, vehicleName='', action="getReportData", useSaved=True ):   # Onix time !
     # print('async def get_LOG_page')
     JWT =  auth()['jwt']
@@ -700,7 +700,7 @@ async def main():
     loger(f'----------Total records = {totalRecordsWAS}')
 
 
-    dateFrom  = dt(2022,10,8,0,0,0)
+    dateFrom  = dt(2022,10,11,0,0,0)
     dateTo =    dt(2022,10,31,0,0,0)
     oneday = td(1)
     days = dateTo - dateFrom

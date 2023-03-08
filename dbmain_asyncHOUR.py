@@ -3,7 +3,6 @@ import sys
 sys.path.append('/home/user/PYTHON/Projects/DSM/venv/')
 sys.path.append('/home/user/PYTHON/Projects/DB/venv/')
 import sqlite3
-import os
 import pickle
 import re
 import requests
@@ -18,6 +17,8 @@ import asyncio
 import aiohttp
 import time
 import subprocess
+import yaml
+import os
 
 
 
@@ -301,6 +302,19 @@ def oneTime_logExampleGetter():
     log = get_LOG(_TimeFrom, _TimeTo, _vehicleID)
     return log
 
+
+def create_transaction_table(cursor):
+        print('creating of transactions table')
+        # log = oneTime_logExampleGetter()
+        # create a table
+        cursor.execute(f'''CREATE TABLE IF NOT EXISTS "transactionz" (
+                                                        "transaction_time_started" timestamp,
+                                                        "transaction_time_finished" timestamp,
+                                                        "data_start_time" timestamp,
+                                                        "data_end_time" timestamp,
+                                                        "lines_written" INTEGER,
+                                                        "total_lines" INTEGER
+                                                        )''')
 
 def create_journal_table(cursor):
     print('cretion of journal')
@@ -638,7 +652,7 @@ def logInserter(log,connection,_vehicleID):
     connection.commit()
 
 
-async def logRetrive(car,dateFrom,dateTo,connection,session):
+async def logRetrieve(car, dateFrom, dateTo, connection, session):
     _vehicleID = car[0]
     carName = CarName(_vehicleID,connection.cursor())
     # print(f'downloading logs for {carName}')
@@ -648,10 +662,131 @@ async def logRetrive(car,dateFrom,dateTo,connection,session):
     print(f'SAVED logs for {carName}')
 
 
-def loger(message):
+def logger(message):
     print(message)
     with open('loglines.txt', 'a') as log_file:
         log_file.write(message+'\n')
+
+def get_cars(cursor):
+    # total cars before
+    cursor.execute(f"SELECT omniIDxl from cars WHERE name NOT LIKE '% TATRA %'")
+    cars = cursor.fetchall()
+    totalCars = len(cars)
+    return cars,totalCars
+
+async def basic_per_day_Downloader(dateTo,dateFrom,cursor,connection):
+    started = dt.utcnow()
+    cursor.execute(f"SELECT Count(*) FROM journal")
+    totalRecordsWAS = cursor.fetchall()[0][0]
+    logger(f'->>>>>>>>>START---------Total records = {totalRecordsWAS}')
+
+    days = dateTo - dateFrom
+    for day in range(0, days.days + 1):
+        started2 = dt.utcnow()
+        logger(f'started {started2}')
+        From = dateFrom + td(day)
+        To = dateTo  # From + oneday
+
+        cursor.execute(f"SELECT Count(*) FROM journal")
+        currentTotalRecordsWAS = cursor.fetchall()[0][0]
+        logger(f'>>>before downloading {From.date()} Total records = {currentTotalRecordsWAS}')
+
+        cars,totalCars = get_cars(cursor)
+        logger(f'Total car {totalCars}')
+
+        tasks = []
+        async with aiohttp.ClientSession() as session:
+            for num in range(0, totalCars):
+                task = asyncio.create_task(logRetrieve(cars.pop(0), From, To, connection, session))
+                tasks.append(task)
+            await asyncio.gather(*tasks)
+
+        print('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Done! >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
+        cursor.execute(f"SELECT Count(*) FROM journal")
+        totalRecordsBECAME = cursor.fetchall()[0][0]
+        logger(
+            f'<<<<finished<<<<<<<<<<<for day {From.date()} taken {dt.utcnow() - started2} written total: {totalRecordsBECAME - currentTotalRecordsWAS} records')
+
+        connection.commit()
+
+    logger('---*********************************----------completed!')
+    cursor.execute(f"SELECT Count(*) FROM journal")
+    totalRecordsBECAME = cursor.fetchall()[0][0]
+    totalWritten = totalRecordsBECAME - totalRecordsWAS
+    logger(
+        f'---*******************---------TOTAL taken {dt.utcnow() - started} written total: {totalWritten} records')
+
+    ### saving totals to tranzactionz:
+    transaction_values = (started,dateFrom,dateTo,totalWritten,dt.utcnow(),totalRecordsBECAME)
+    sqlite_insert_with_param = f"""INSERT INTO transactionz 
+                                ('transaction_time_started',
+                                'data_start_time',
+                                'data_end_time',
+                                'lines_written',
+                                'transaction_time_finished',
+                                'total_lines')
+                                VALUES (?,?,?,?,?,?);"""
+    connection.execute(sqlite_insert_with_param, transaction_values)
+    connection.commit()
+
+    return connection
+
+
+def getDateToAndNow(cursor):
+    lastTransaction = get_last_transaction(cursor)
+    now = dt.now()
+    dateTo = lastTransaction[0][3]
+    return dateTo,now
+
+async def persistent_Downloader(cycle, cursor, connection):
+    started = dt.utcnow()
+    dateTo,now = getDateToAndNow(cursor)
+    while now-td(0,cycle) > dateTo:
+        # do basic downlaod ro fill the gap before regular cycle:
+        logger(f'have to fill the gap {now-td(0,cycle)} still grater than {dateTo}')
+        connection = await basic_per_day_Downloader(now,dateTo,cursor,connection)
+        dateTo, now = getDateToAndNow(cursor)
+
+    while 1==1:
+        logger('startin endLESS cycle')
+        dateTo, now = getDateToAndNow(cursor)
+        nextStartTime = dateTo + td(0,cycle)
+        if nextStartTime != now:
+            time.sleep(1)
+            now = dt.now()
+            if now.second % 15 == 0:
+                print(f'waiting for the next cycle {nextStartTime}')
+        else:
+            logger('starting cycled retriever')
+            tasks = []
+            cars,totalCars = get_cars(cursor)
+            async with aiohttp.ClientSession() as session:
+                for num in range(0, totalCars):
+                    task = asyncio.create_task(logRetrieve(cars.pop(0),
+                                                           dateTo,
+                                                           nextStartTime,
+                                                           connection, session)
+                                               )
+                    tasks.append(task)
+                await asyncio.gather(*tasks)
+
+
+def  get_last_transaction(cursor):
+    cursor.execute(f"SELECT Count(*) FROM transactionz")
+    lastRecordN = cursor.fetchall()
+    if lastRecordN:   lastRecordN = lastRecordN[0][0]
+    cursor.execute(f"SELECT * FROM transactionz LIMIT {lastRecordN} OFFSET {lastRecordN - 1};")
+    transaction = None
+    transaction = cursor.fetchall()
+    return transaction
+
+def checkDownloadConsistency(cursor):
+    cursor.execute(f"SELECT Count(*) FROM journal")
+    totalRecordsL = cursor.fetchall()
+    if totalRecordsL:   totalRecords = totalRecordsL[0][0]
+    cursor.execute(f"SELECT * FROM transactionz")
+    transactionz = cursor.fetchall()
+    if transactionz:  transaction = transactionz[0][0]
 
 
 
@@ -670,13 +805,20 @@ async def main():
     # cars_xl_list_path = '/home/user/PYTHON/Projects/DSM/venv/_lists/listAUTO_fullList.xlsx'
     # path2DB = r'/home/user/PYTHON/Projects/DB/'
     # DBname = 'journal.sqlite'
-    path2DBfile = fr'C:\home\user\PYTHON\Projects\DB\journal.sqlite'
-    #GetPath2DBfile()
+    # path2DBfile = fr'C:\home\user\PYTHON\Projects\DB\journal.sqlite'
+    cwd = os.getcwd()
+    path2DBfile = GetPath2DBfile()
     # connect to database
-    connection = sqlite3.connect(path2DBfile, timeout=10, isolation_level=None)
+    connection = sqlite3.connect(database = path2DBfile,
+                                 timeout = 10,
+                                 detect_types = sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES,
+                                 isolation_level = 'DEFERRED',
+                                 check_same_thread = False,
+                                 factory = sqlite3.Connection,
+                                 cached_statements = 128,
+                                 uri = False)
     # create a cursor
     cursor = connection.cursor()
-
 
     # # check if cars table exist
     # if check_if_cars_table_exist(cursor) == False:
@@ -695,52 +837,38 @@ async def main():
 
     # # getting info for insertion:
     # _vehicleID = 1219001271
+    # by default it is a regular persistent downloader
+    downloadORregular = 2
 
-    cursor.execute(f"SELECT Count(*) FROM journal")
-    totalRecordsWAS = cursor.fetchall()[0][0]
-    loger(f'->>>>>>>>>START---------Total records = {totalRecordsWAS}')
+    # getting options from yaml file:
+    try:
+        with open(f'{cwd}/downloader_options.yaml', 'r') as optionsfile:
+            options = yaml.safe_load(optionsfile)
+        downloadORregular = options['downloadORregular']  # downlaod=1; regular job=2
+        dateFrom = options['dateFrom']
+        dateTo = options['dateTo']
+        cycle = options['cycle']
+        if downloadORregular == 1:
+            logger(f"start time:{dateFrom}")
+            logger(f"end time:{dateTo}")
+    except:
+        logger(f"##############   options files WAS NOT loaded ! ###########")
+        print(f"##############   check downloader_options.yaml  ###########")
 
 
-    dateFrom  = dt(2023,3,5,5)
-    dateTo =    dt(2023,3,5,5)
-    oneday = td(1)
-    days = dateTo - dateFrom
+    # totalTime = dateTo - dateFrom
+    # cyclesToDo = totalTime // cycle
+    # residual = totalTime % cycle
 
 
-    for day in range(0,days.days+1):
-        started2 = dt.utcnow()
-        loger(f'started {started2}')
-        From = dateFrom+td(day)
-        To = dateTo #From + oneday
+    if downloadORregular == 1:
+        # basic days downloader:
+        connection = await basic_per_day_Downloader(dateTo, dateFrom, cursor, connection)
+    else:
+        # regular job with given cycle
+        logger('start persistent')
+        connection = await persistent_Downloader(cycle, cursor, connection)
 
-        cursor.execute(f"SELECT Count(*) FROM journal")
-        currentTotalRecordsWAS = cursor.fetchall()[0][0]
-        loger(f'>>>before downloading {From.date()} Total records = {currentTotalRecordsWAS}')
-
-        # total cars before
-        cursor.execute(f"SELECT omniIDxl from cars WHERE name NOT LIKE '% TATRA %'")
-        cars = cursor.fetchall()
-        totalCars = len(cars)
-        loger(f'Total car {totalCars}')
-
-        tasks = []
-        async with aiohttp.ClientSession() as session:
-            for num in range(0,totalCars):
-                task = asyncio.create_task(logRetrive(cars.pop(0), From, To, connection,session))
-                tasks.append(task)
-            await asyncio.gather(*tasks)
-
-        print('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Done! >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
-        cursor.execute(f"SELECT Count(*) FROM journal")
-        totalRecordsBECAME = cursor.fetchall()[0][0]
-        loger(f'<<<<finished<<<<<<<<<<<for day {From.date()} taken {dt.utcnow()-started2} written total: {totalRecordsBECAME - currentTotalRecordsWAS} records')
-
-        connection.commit()
-
-    loger('---*********************************----------completed!')
-    cursor.execute(f"SELECT Count(*) FROM journal")
-    totalRecordsBECAME = cursor.fetchall()[0][0]
-    loger(f'---*******************---------TOTAL taken {dt.utcnow()-started} written total: {totalRecordsBECAME - totalRecordsWAS} records')
 
     # commit
     connection.commit()

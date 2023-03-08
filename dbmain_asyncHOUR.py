@@ -717,7 +717,13 @@ async def basic_per_day_Downloader(dateTo,dateFrom,cursor,connection):
         f'---*******************---------TOTAL taken {dt.utcnow() - started} written total: {totalWritten} records')
 
     ### saving totals to tranzactionz:
-    transaction_values = (started,dateFrom,dateTo,totalWritten,dt.utcnow(),totalRecordsBECAME)
+    saveTotalsToTransactionz(connection,started,dateFrom,dateTo,totalWritten,dt.now(),totalRecordsBECAME)
+
+    return connection
+
+
+def saveTotalsToTransactionz(connection,timeStarted,dateFrom,dateTo,totalWritten,timeFinished,totalRecords):
+    transaction_values = (timeStarted, dateFrom, dateTo, totalWritten, timeFinished, totalRecords)
     sqlite_insert_with_param = f"""INSERT INTO transactionz 
                                 ('transaction_time_started',
                                 'data_start_time',
@@ -728,8 +734,6 @@ async def basic_per_day_Downloader(dateTo,dateFrom,cursor,connection):
                                 VALUES (?,?,?,?,?,?);"""
     connection.execute(sqlite_insert_with_param, transaction_values)
     connection.commit()
-
-    return connection
 
 
 def getDateToAndNow(cursor):
@@ -748,16 +752,20 @@ async def persistent_Downloader(cycle, cursor, connection):
         dateTo, now = getDateToAndNow(cursor)
 
     while 1==1:
-        logger('startin endLESS cycle')
+        if now.second % 60 == 0:
+            print('endLESS cycle')
+        # logger('startin endLESS cycle')
         dateTo, now = getDateToAndNow(cursor)
         nextStartTime = dateTo + td(0,cycle)
-        if nextStartTime != now:
+        if nextStartTime - now > td(0,2):
             time.sleep(1)
             now = dt.now()
-            if now.second % 15 == 0:
+            if now.second % 30 == 0:
                 print(f'waiting for the next cycle {nextStartTime}')
         else:
             logger('starting cycled retriever')
+            cursor.execute(f"SELECT Count(*) FROM journal")
+            totalRecordsWAS = cursor.fetchall()[0][0]
             tasks = []
             cars,totalCars = get_cars(cursor)
             async with aiohttp.ClientSession() as session:
@@ -769,7 +777,10 @@ async def persistent_Downloader(cycle, cursor, connection):
                                                )
                     tasks.append(task)
                 await asyncio.gather(*tasks)
-
+            cursor.execute(f"SELECT Count(*) FROM journal")
+            totalRecordsBECAME = cursor.fetchall()[0][0]
+            totalWritten = totalRecordsBECAME - totalRecordsWAS
+            saveTotalsToTransactionz(connection, started, dateTo, nextStartTime, totalWritten, dt.now(), totalRecordsBECAME)
 
 def  get_last_transaction(cursor):
     cursor.execute(f"SELECT Count(*) FROM transactionz")

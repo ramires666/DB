@@ -748,15 +748,16 @@ def saveTotalsToTransactionz(connection,timeStarted,dateFrom,dateTo,totalWritten
     connection.commit()
 
 
-def getDateToAndNow(cursor):
+def getDateToAndNow(cursor,dateTo):
     lastTransaction = get_last_transaction(cursor)
     now = dt.now()
-    dateTo = lastTransaction[0][3]
+    try:  dateTo = lastTransaction[0][3]
+    except: pass
     return dateTo,now
 
-async def persistent_Downloader(cycle, cursor, connection):
+async def persistent_Downloader(cycle, dateTo, cursor, connection):
     started = dt.utcnow()
-    dateTo,now = getDateToAndNow(cursor)
+    dateTo,now = getDateToAndNow(cursor,dateTo)
     while now-td(0,cycle) > dateTo:
         # do basic downlaod ro fill the gap before regular cycle:
         logger(f'have to fill the gap {now-td(0,cycle)} still grater than {dateTo}')
@@ -893,7 +894,7 @@ async def main():
     else:
         # regular job with given cycle
         logger('start persistent')
-        connection = await persistent_Downloader(cycle, cursor, connection)
+        connection = await persistent_Downloader(cycle, dateTo, cursor, connection)
 
 
     # commit

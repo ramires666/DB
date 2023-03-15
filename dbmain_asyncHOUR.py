@@ -1,13 +1,13 @@
 #%% imports
 import sys
-sys.path.append('/home/user/PYTHON/Projects/DSM/venv/')
+# sys.path.append('/home/user/PYTHON/Projects/DSM/venv/')
 sys.path.append('/home/user/PYTHON/Projects/DB/venv/')
 import sqlite3
 import pickle
 import re
 import requests
 import json
-from TIME_OMNI import *
+# from TIME_OMNI import *
 from authorize_async import *
 import pandas as pd
 # import openpyxl
@@ -19,6 +19,8 @@ import time
 import subprocess
 import yaml
 import os
+from datetime import datetime as dt
+from datetime import timedelta as td
 
 
 
@@ -50,6 +52,15 @@ def Date2Onix(year, month, day, hour=12, minute=0, second = 0):  # date to milli
     ).timetuple() )
     return str(int(date*1000))
 
+def Onix2Date(OnixTime):
+    return dt.fromtimestamp( int( OnixTime[:10] ) )
+
+def dateTime2Onix(date):
+    # dt = date2datetime(date)
+    return Unix2Onix(int(date.timestamp()))
+
+def Unix2Onix(UnixTime):    #  Add 000
+    return str(UnixTime)+'000'
 
 def OMNI2CarName(vehicleOMNI):
     df = pd.read_excel(r'/home/user/PYTHON/Projects/DSM/venv/_lists/listAUTO_fullList.xlsx')
@@ -315,6 +326,7 @@ def create_transaction_table(cursor):
                                                         "lines_written" INTEGER,
                                                         "total_lines" INTEGER
                                                         )''')
+
 
 def create_journal_table(cursor):
     print('cretion of journal')
@@ -676,7 +688,7 @@ def get_cars(cursor):
 
 async def basic_per_day_Downloader(dateTo,dateFrom,cursor,connection):
     started = dt.utcnow()
-    cursor.execute(f"SELECT Count(*) FROM journal")
+    cursor.execute(f"SELECT max(ROWID) FROM journal")
     totalRecordsWAS = cursor.fetchall()[0][0]
     logger(f'->>>>>>>>>START---------Total records = {totalRecordsWAS}')
 
@@ -687,7 +699,7 @@ async def basic_per_day_Downloader(dateTo,dateFrom,cursor,connection):
         From = dateFrom + td(day)
         To = dateTo  # From + oneday
 
-        cursor.execute(f"SELECT Count(*) FROM journal")
+        cursor.execute(f"SELECT max(ROWID) FROM journal")
         currentTotalRecordsWAS = cursor.fetchall()[0][0]
         logger(f'>>>before downloading {From.date()} Total records = {currentTotalRecordsWAS}')
 
@@ -702,7 +714,7 @@ async def basic_per_day_Downloader(dateTo,dateFrom,cursor,connection):
             await asyncio.gather(*tasks)
 
         print('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Done! >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
-        cursor.execute(f"SELECT Count(*) FROM journal")
+        cursor.execute(f"SELECT max(ROWID) FROM journal")
         totalRecordsBECAME = cursor.fetchall()[0][0]
         logger(
             f'<<<<finished<<<<<<<<<<<for day {From.date()} taken {dt.utcnow() - started2} written total: {totalRecordsBECAME - currentTotalRecordsWAS} records')
@@ -710,7 +722,7 @@ async def basic_per_day_Downloader(dateTo,dateFrom,cursor,connection):
         connection.commit()
 
     logger('---*********************************----------completed!')
-    cursor.execute(f"SELECT Count(*) FROM journal")
+    cursor.execute(f"SELECT max(ROWID) FROM journal")
     totalRecordsBECAME = cursor.fetchall()[0][0]
     totalWritten = totalRecordsBECAME - totalRecordsWAS
     logger(
@@ -764,7 +776,7 @@ async def persistent_Downloader(cycle, cursor, connection):
                 print(f'waiting for the next cycle {nextStartTime}')
         else:
             logger('starting cycled retriever')
-            cursor.execute(f"SELECT Count(*) FROM journal")
+            cursor.execute(f"SELECT max(ROWID) FROM journal")
             totalRecordsWAS = cursor.fetchall()[0][0]
             tasks = []
             cars,totalCars = get_cars(cursor)
@@ -777,7 +789,7 @@ async def persistent_Downloader(cycle, cursor, connection):
                                                )
                     tasks.append(task)
                 await asyncio.gather(*tasks)
-            cursor.execute(f"SELECT Count(*) FROM journal")
+            cursor.execute(f"SELECT max(ROWID) FROM journal")
             totalRecordsBECAME = cursor.fetchall()[0][0]
             totalWritten = totalRecordsBECAME - totalRecordsWAS
             saveTotalsToTransactionz(connection, started, dateTo, nextStartTime, totalWritten, dt.now(), totalRecordsBECAME)
@@ -792,7 +804,7 @@ def  get_last_transaction(cursor):
     return transaction
 
 def checkDownloadConsistency(cursor):
-    cursor.execute(f"SELECT Count(*) FROM journal")
+    cursor.execute(f"SELECT max(ROWID) FROM journal")
     totalRecordsL = cursor.fetchall()
     if totalRecordsL:   totalRecords = totalRecordsL[0][0]
     cursor.execute(f"SELECT * FROM transactionz")
@@ -850,6 +862,9 @@ async def main():
     # _vehicleID = 1219001271
     # by default it is a regular persistent downloader
     downloadORregular = 2
+
+    create_transaction_table(cursor)
+    connection.commit()
 
     # getting options from yaml file:
     try:

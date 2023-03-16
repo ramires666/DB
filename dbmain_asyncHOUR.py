@@ -762,13 +762,13 @@ async def persistent_Downloader(cycle, dateTo, cursor, connection):
         # do basic downlaod ro fill the gap before regular cycle:
         logger(f'have to fill the gap {now-td(0,cycle)} still grater than {dateTo}')
         connection = await basic_per_day_Downloader(now,dateTo,cursor,connection)
-        dateTo, now = getDateToAndNow(cursor)
+        dateTo, now = getDateToAndNow(cursor,dateTo)
 
     while 1==1:
         if now.second % 60 == 0:
             print('endLESS cycle')
         # logger('startin endLESS cycle')
-        dateTo, now = getDateToAndNow(cursor)
+        dateTo, now = getDateToAndNow(cursor,dateTo)
         nextStartTime = dateTo + td(0,cycle)
         if nextStartTime - now > td(0,2):
             time.sleep(1)

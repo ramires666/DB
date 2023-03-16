@@ -105,7 +105,7 @@ class Limiter:
 
 
 
-@Limiter(calls_limit=10, period=1)
+@Limiter(calls_limit=10, period=2)
 async def get_LOG_page(_TimeFrom, _TimeTo, _vehicleID, session, page=1, rows=500, vehicleName='', action="getReportData", useSaved=True ):   # Onix time !
     # print('async def get_LOG_page')
     JWT =  auth()['jwt']
@@ -271,6 +271,10 @@ async def get_LOG(_TimeFrom, _TimeTo, _vehicleID, session, rows=500, action="get
                 tasks.append(task)
             await asyncio.gather(*tasks)
 
+        # if total_pages > 1:
+        #         pass
+
+
         # saving scraped request:
         if save2file:
             with open( cashed_file, 'wb' ) as f:
@@ -324,7 +328,9 @@ def create_transaction_table(cursor):
                                                         "data_start_time" timestamp,
                                                         "data_end_time" timestamp,
                                                         "lines_written" INTEGER,
-                                                        "total_lines" INTEGER
+                                                        "total_lines" INTEGER,
+                                                        "car_name" TEXT,
+                                                        "comment" TEXT
                                                         )''')
 
 
@@ -671,6 +677,9 @@ async def logRetrieve(car, dateFrom, dateTo, connection, session):
 
     log = await get_LOG(dateTime2Onix(dateFrom), dateTime2Onix(dateTo), _vehicleID, session, useSaved=False,_vehicleName=carName)
     logInserter(log, connection, _vehicleID)
+    additionalRecords = len(log)
+    totalRecords = get_JournalTotalRecords(connection) + additionalRecords
+    saveTotalsToTransactionz(connection,dateFrom,dateFrom,dateTo,additionalRecords,dt.now(),totalRecords,carName,'full log retrieve')
     print(f'SAVED logs for {carName}')
 
 
@@ -688,19 +697,17 @@ def get_cars(cursor):
 
 async def basic_per_day_Downloader(dateTo,dateFrom,cursor,connection):
     started = dt.utcnow()
-    cursor.execute(f"SELECT max(ROWID) FROM journal")
-    totalRecordsWAS = cursor.fetchall()[0][0]
+    totalRecordsWAS = get_JournalTotalRecords(cursor)
     logger(f'->>>>>>>>>START---------Total records = {totalRecordsWAS}')
 
     days = dateTo - dateFrom
     for day in range(0, days.days + 1):
         started2 = dt.utcnow()
-        logger(f'started {started2}')
+        logger(f'started basic {started2} downloader')
         From = dateFrom + td(day)
-        To = dateTo  # From + oneday
+        To = min(dateTo,dt.now())  # From + oneday
 
-        cursor.execute(f"SELECT max(ROWID) FROM journal")
-        currentTotalRecordsWAS = cursor.fetchall()[0][0]
+        currentTotalRecordsWAS = get_JournalTotalRecords(cursor)
         logger(f'>>>before downloading {From.date()} Total records = {currentTotalRecordsWAS}')
 
         cars,totalCars = get_cars(cursor)
@@ -714,38 +721,39 @@ async def basic_per_day_Downloader(dateTo,dateFrom,cursor,connection):
             await asyncio.gather(*tasks)
 
         print('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Done! >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
-        cursor.execute(f"SELECT max(ROWID) FROM journal")
-        totalRecordsBECAME = cursor.fetchall()[0][0]
+        totalRecordsBECAME = get_JournalTotalRecords(cursor)
         logger(
             f'<<<<finished<<<<<<<<<<<for day {From.date()} taken {dt.utcnow() - started2} written total: {totalRecordsBECAME - currentTotalRecordsWAS} records')
 
         connection.commit()
 
     logger('---*********************************----------completed!')
-    cursor.execute(f"SELECT max(ROWID) FROM journal")
-    totalRecordsBECAME = cursor.fetchall()[0][0]
+    totalRecordsBECAME = get_JournalTotalRecords(cursor)
     totalWritten = totalRecordsBECAME - totalRecordsWAS
     logger(
         f'---*******************---------TOTAL taken {dt.utcnow() - started} written total: {totalWritten} records')
 
     ### saving totals to tranzactionz:
-    saveTotalsToTransactionz(connection,started,dateFrom,dateTo,totalWritten,dt.now(),totalRecordsBECAME)
+    saveTotalsToTransactionz(connection,started,dateFrom,dateTo,totalWritten,dt.now(),totalRecordsBECAME,'all','finished basic')
 
     return connection
 
 
-def saveTotalsToTransactionz(connection,timeStarted,dateFrom,dateTo,totalWritten,timeFinished,totalRecords):
-    transaction_values = (timeStarted, dateFrom, dateTo, totalWritten, timeFinished, totalRecords)
-    sqlite_insert_with_param = f"""INSERT INTO transactionz 
-                                ('transaction_time_started',
-                                'data_start_time',
-                                'data_end_time',
-                                'lines_written',
-                                'transaction_time_finished',
-                                'total_lines')
-                                VALUES (?,?,?,?,?,?);"""
-    connection.execute(sqlite_insert_with_param, transaction_values)
-    connection.commit()
+def saveTotalsToTransactionz(connection,timeStarted,dateFrom,dateTo,totalWritten,timeFinished,totalRecords,car_name='',comment=''):
+    if car_name == 'all' or totalWritten != 0:
+        transaction_values = (timeStarted, dateFrom, dateTo, totalWritten, timeFinished, totalRecords,car_name,comment)
+        sqlite_insert_with_param = f"""INSERT INTO transactionz 
+                                    ('transaction_time_started',
+                                    'data_start_time',
+                                    'data_end_time',
+                                    'lines_written',
+                                    'transaction_time_finished',
+                                    'total_lines',
+                                    'car_name',
+                                    'comment')
+                                    VALUES (?,?,?,?,?,?,?,?);"""
+        connection.execute(sqlite_insert_with_param, transaction_values)
+        connection.commit()
 
 
 def getDateToAndNow(cursor,dateTo):
@@ -777,8 +785,8 @@ async def persistent_Downloader(cycle, dateTo, cursor, connection):
                 print(f'waiting for the next cycle {nextStartTime}')
         else:
             logger('starting cycled retriever')
-            cursor.execute(f"SELECT max(ROWID) FROM journal")
-            totalRecordsWAS = cursor.fetchall()[0][0]
+            # cursor.execute(f"SELECT max(ROWID) FROM journal")
+            totalRecordsWAS = get_JournalTotalRecords(cursor)
             tasks = []
             cars,totalCars = get_cars(cursor)
             async with aiohttp.ClientSession() as session:
@@ -790,16 +798,28 @@ async def persistent_Downloader(cycle, dateTo, cursor, connection):
                                                )
                     tasks.append(task)
                 await asyncio.gather(*tasks)
-            cursor.execute(f"SELECT max(ROWID) FROM journal")
-            totalRecordsBECAME = cursor.fetchall()[0][0]
+            # cursor.execute(f"SELECT max(ROWID) FROM journal")
+            totalRecordsBECAME = get_JournalTotalRecords(cursor)
             totalWritten = totalRecordsBECAME - totalRecordsWAS
-            saveTotalsToTransactionz(connection, started, dateTo, nextStartTime, totalWritten, dt.now(), totalRecordsBECAME)
+            saveTotalsToTransactionz(connection, started, dateTo, nextStartTime, totalWritten, dt.now(), totalRecordsBECAME,'all', 'finished persistent')
+            # saveTotalsToTransactionz(connection, started, dateFrom, dateTo, totalWritten, dt.now(), totalRecordsBECAME,
+            #                          'all', 'finished basic')
 
-def  get_last_transaction(cursor):
-    cursor.execute(f"SELECT Count(*) FROM transactionz")
+
+def get_JournalTotalRecords(cursor):
+    return cursor.execute(f"SELECT max(ROWID) FROM journal").fetchall()[0][0]
+    # return cursor.fetchall()[0][0]
+
+def getLastTrasactionNumber(cursor):
+    cursor.execute(f"SELECT max(ROWID) FROM transactionz")
     lastRecordN = cursor.fetchall()
     if lastRecordN:   lastRecordN = lastRecordN[0][0]
-    cursor.execute(f"SELECT * FROM transactionz LIMIT {lastRecordN} OFFSET {lastRecordN - 1};")
+    return lastRecordN
+
+def get_last_transaction(cursor):
+    lastRecordN = getLastTrasactionNumber(cursor)
+    # cursor.execute(f"SELECT * FROM transactionz LIMIT {lastRecordN} OFFSET {lastRecordN - 1};")
+    cursor.execute(f"SELECT * FROM transactionz WHERE ROWID={lastRecordN};")
     transaction = None
     transaction = cursor.fetchall()
     return transaction

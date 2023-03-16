@@ -53,23 +53,22 @@ def login():
                 data={"login": login, "password": password})
             if not response:
                 time2wait *= timeMult
-                print(time2wait)
-                time.sleep(time2wait)
+                # print(time2wait)
                 print(f'>>>>..empty response........ waiting for authorization {time2wait}........')
+                time.sleep(time2wait)
                 continue
         except:
             time2wait *= timeMult
-            time.sleep(time2wait)
             print(f'>>>>..connection error.... waiting for authorization {time2wait}........')
+            time.sleep(time2wait)
 
     JWT = response.json().get('jwt')
     REFRESH = response.json().get('refresh')
     EXP = int(dt.now().timestamp())
     freshJWT = {'jwt': JWT, 'refresh': REFRESH, 'exp': EXP}
     # saving 2 file:
-    fjwt = open('authJWT.txt', 'w', encoding='utf-8')
-    fjwt.write(json.dumps(freshJWT))
-    fjwt.close()
+    with open('authJWT.txt', 'w', encoding='utf-8') as fjwt:
+        fjwt.write(json.dumps(freshJWT))
     return freshJWT
 
 
@@ -89,21 +88,18 @@ def refresh(jwt):
                        'Content-Type': 'application/json'}
             response = requests.post(
                 'https://online.omnicomm.ru/auth/refresh', headers=Headers)
-                # ,data={'jwt': jwt['jwt'], 'refresh_token': jwt['refresh']})
             if not response:
-                time2wait *= timeMult
-                print(time2wait)
-                time.sleep(time2wait)
                 print(f'>>>>.......... waiting for REauthorization {time2wait}........')
+                time2wait *= timeMult
+                time.sleep(time2wait)
                 return login()
             elif response.status_code==401:
                 print('not authorized')
-                # freshjwt = login()
                 return login()
         except:
+            print(f'>>>>...connection error.... waiting for authorization {time2wait}........')
             time2wait *= timeMult
             time.sleep(time2wait)
-            print(f'>>>>...connection error.... waiting for authorization {time2wait}........')
 
     if not freshjwt:
         JWT = response.json().get('jwt')
@@ -114,9 +110,8 @@ def refresh(jwt):
     EXP = dt.now().timestamp()
     freshjwt = {'jwt': JWT, 'refresh': REFRESH, 'exp': int(EXP)}
     # saving 2 file:
-    fjwt = open('authJWT.txt', 'w', encoding='utf-8')
-    fjwt.write(json.dumps(freshjwt))
-    fjwt.close()
+    with open('authJWT.txt', 'w', encoding='utf-8') as fjwt:
+        fjwt.write(json.dumps(freshjwt))
     return freshjwt
 
 

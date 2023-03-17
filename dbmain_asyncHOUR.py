@@ -695,7 +695,52 @@ def get_cars(cursor):
     totalCars = len(cars)
     return cars,totalCars
 
+
+
 async def basic_per_day_Downloader(dateTo,dateFrom,cursor,connection):
+    started = dt.utcnow()
+    totalRecordsWAS = get_JournalTotalRecords(cursor)
+    logger(f'->>>>>>>>>START---------Total records = {totalRecordsWAS}')
+
+    days = dateTo - dateFrom
+
+    cars, totalCars = get_cars(cursor)
+    logger(f'Total car {totalCars}')
+
+    tasks = []
+    async with aiohttp.ClientSession() as session:
+        for num in range(0, totalCars):
+            for day in range(0, days.days + 1):
+                From = dateFrom + td(day)
+                To = From + td(1)
+                To = min(dateTo, To)
+                task = asyncio.create_task(logRetrieve(cars[num], From, To, connection, session))
+                tasks.append(task)
+        currentTotalRecordsWAS = get_JournalTotalRecords(cursor)
+        logger(f'>>>before downloading {From.date()} Total records = {currentTotalRecordsWAS}')
+        started2 = dt.utcnow()
+        logger(f'started basic {started2} downloader')
+        await asyncio.gather(*tasks)
+        connection.commit()
+
+    print('<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< Done! >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>')
+    totalRecordsBECAME = get_JournalTotalRecords(cursor)
+    logger(
+        f'<<<<finished<<<<<<<<<<<for day {From.date()} taken {dt.utcnow() - started2} written total: {totalRecordsBECAME - currentTotalRecordsWAS} records')
+    logger('---*********************************----------completed!')
+    # totalRecordsBECAME = get_JournalTotalRecords(cursor)
+    totalWritten = totalRecordsBECAME - totalRecordsWAS
+    logger(
+        f'---*******************---------TOTAL taken {dt.utcnow() - started} written total: {totalWritten} records')
+
+    ### saving totals to tranzactionz:
+    saveTotalsToTransactionz(connection,started,dateFrom,dateTo,totalWritten,dt.now(),totalRecordsBECAME,'all','finished basic')
+
+    return connection
+
+
+
+async def basic_per_day_Downloader_OLD(dateTo,dateFrom,cursor,connection):
     started = dt.utcnow()
     totalRecordsWAS = get_JournalTotalRecords(cursor)
     logger(f'->>>>>>>>>START---------Total records = {totalRecordsWAS}')
@@ -854,7 +899,7 @@ async def main():
     path2DBfile = GetPath2DBfile()
     # connect to database
     connection = sqlite3.connect(database = path2DBfile,
-                                 timeout = 10,
+                                 timeout = 20,
                                  detect_types = sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES,
                                  isolation_level = 'DEFERRED',
                                  check_same_thread = False,

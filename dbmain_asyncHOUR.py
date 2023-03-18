@@ -904,14 +904,13 @@ async def main():
                                  isolation_level = 'DEFERRED',
                                  check_same_thread = False,
                                  factory = sqlite3.Connection,
-                                 cached_statements = 128,
+                                 cached_statements = 256,
                                  uri = False)
-    connection.execute("""
-    PRAGMA journal_mode=WAL;
-    PRAGMA synchronous=FULL;
-    PRAGMA temp_store=MEMORY;
-    """)
+    connection.execute("PRAGMA journal_mode=WAL")
+    connection.execute("PRAGMA synchronous=FULL")
+    connection.execute("PRAGMA temp_store=MEMORY")
     connection.commit()
+
     # create a cursor
     cursor = connection.cursor()
 

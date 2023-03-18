@@ -105,7 +105,7 @@ class Limiter:
 
 
 
-@Limiter(calls_limit=10, period=2)
+@Limiter(calls_limit=10, period=1)
 async def get_LOG_page(_TimeFrom, _TimeTo, _vehicleID, session, page=1, rows=500, vehicleName='', action="getReportData", useSaved=True ):   # Onix time !
     # print('async def get_LOG_page')
     JWT =  auth()['jwt']
@@ -906,6 +906,11 @@ async def main():
                                  factory = sqlite3.Connection,
                                  cached_statements = 128,
                                  uri = False)
+    connection.execute("""
+    PRAGMA journal_mode=WAL;
+    PRAGMA synchronous=FULL;
+    PRAGMA temp_store=MEMORY;
+    """)
     # create a cursor
     cursor = connection.cursor()
 

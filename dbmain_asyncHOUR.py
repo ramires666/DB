@@ -911,6 +911,7 @@ async def main():
     PRAGMA synchronous=FULL;
     PRAGMA temp_store=MEMORY;
     """)
+    connection.commit()
     # create a cursor
     cursor = connection.cursor()
 
